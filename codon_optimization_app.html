@@ -1,0 +1,319 @@
+
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8"/>
+    </head>
+    <body>
+        <p> Codon Min/Max Visualizer </p>
+        <p> Current version only supports E. Coli </p>
+        <p> Developed by Nhan Nguyen, Sean Johnson (Conagen) </p>
+        <script src="https://cdn.jsdelivr.net/npm/chart.js@2.8.0"></script>
+        <script>
+            
+            // see https://www.ncbi.nlm.nih.gov/Taxonomy/Utils/wprintgc.cgi
+            //
+            //
+            //     Example:
+            //     AAs    = FFLLSSSSYY**CC*WLLLLPPPPHHQQRRRRIIIMTTTTNNKKSSRRVVVVAAAADDEEGGGG
+            //     Starts = ---M------**--*----M---------------M----------------------------
+            //     Base1  = TTTTTTTTTTTTTTTTCCCCCCCCCCCCCCCCAAAAAAAAAAAAAAAAGGGGGGGGGGGGGGGG
+            //     Base2  = TTTTCCCCAAAAGGGGTTTTCCCCAAAAGGGGTTTTCCCCAAAAGGGGTTTTCCCCAAAAGGGG
+            //     Base3  = TCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAG
+            //
+            //    For this app, the only field that really matters is the first field. We don't really care about alternative start codons.
+            codon_tables = {
+                "1": ["FFLLSSSSYY**CC*WLLLLPPPPHHQQRRRRIIIMTTTTNNKKSSRRVVVVAAAADDEEGGGG","---M------**--*----M---------------M----------------------------","Standard"],
+                "2": ["FFLLSSSSYY**CCWWLLLLPPPPHHQQRRRRIIMMTTTTNNKKSS**VVVVAAAADDEEGGGG","----------**--------------------MMMM----------**---M------------","Vertebrate Mitochondrial"],
+                "3": ["FFLLSSSSYY**CCWWTTTTPPPPHHQQRRRRIIMMTTTTNNKKSSRRVVVVAAAADDEEGGGG","----------**----------------------MM----------------------------","Yeast Mitochondrial"],
+                "4": ["FFLLSSSSYY**CCWWLLLLPPPPHHQQRRRRIIIMTTTTNNKKSSRRVVVVAAAADDEEGGGG","--MM------**-------M------------MMMM---------------M------------","Mold Mitochondrial; Protozoan Mitochondrial; Coelenterate Mitochondrial; Mycoplasma; Spiroplasma"],
+                "5": ["FFLLSSSSYY**CCWWLLLLPPPPHHQQRRRRIIMMTTTTNNKKSSSSVVVVAAAADDEEGGGG","---M------**--------------------MMMM---------------M------------","Invertebrate Mitochondrial"],
+                "6": ["FFLLSSSSYYQQCC*WLLLLPPPPHHQQRRRRIIIMTTTTNNKKSSRRVVVVAAAADDEEGGGG","--------------*--------------------M----------------------------","Ciliate, Dasycladacean and Hexamita Nuclear"],
+                "9": ["FFLLSSSSYY**CCWWLLLLPPPPHHQQRRRRIIIMTTTTNNNKSSSSVVVVAAAADDEEGGGG","----------**-----------------------M---------------M------------","Echinoderm and Flatworm Mitochondrial"],
+                "10":["FFLLSSSSYY**CCCWLLLLPPPPHHQQRRRRIIIMTTTTNNKKSSRRVVVVAAAADDEEGGGG","----------**-----------------------M----------------------------","Euplotid Nuclear"],
+                "11":["FFLLSSSSYY**CC*WLLLLPPPPHHQQRRRRIIIMTTTTNNKKSSRRVVVVAAAADDEEGGGG","---M------**--*----M------------MMMM---------------M------------","Bacterial, Archaeal and Plant Plastid"],
+                "12":["FFLLSSSSYY**CC*WLLLSPPPPHHQQRRRRIIIMTTTTNNKKSSRRVVVVAAAADDEEGGGG","----------**--*----M---------------M----------------------------","Alternative Yeast Nuclear"],
+                "13":["FFLLSSSSYY**CCWWLLLLPPPPHHQQRRRRIIMMTTTTNNKKSSGGVVVVAAAADDEEGGGG","---M------**----------------------MM---------------M------------","Ascidian Mitochondrial"],
+                "14":["FFLLSSSSYYY*CCWWLLLLPPPPHHQQRRRRIIIMTTTTNNNKSSSSVVVVAAAADDEEGGGG","-----------*-----------------------M----------------------------","Alternative Flatworm Mitochondrial"],
+                "16":["FFLLSSSSYY*LCC*WLLLLPPPPHHQQRRRRIIIMTTTTNNKKSSRRVVVVAAAADDEEGGGG","----------*---*--------------------M----------------------------","Chlorophycean Mitochondrial"],
+                "21":["FFLLSSSSYY**CCWWLLLLPPPPHHQQRRRRIIMMTTTTNNNKSSSSVVVVAAAADDEEGGGG","----------**-----------------------M---------------M------------","Trematode Mitochondrial"],
+                "22":["FFLLSS*SYY*LCC*WLLLLPPPPHHQQRRRRIIIMTTTTNNKKSSRRVVVVAAAADDEEGGGG","------*---*---*--------------------M----------------------------","Scenedesmus obliquus Mitochondrial"],
+                "23":["FF*LSSSSYY**CC*WLLLLPPPPHHQQRRRRIIIMTTTTNNKKSSRRVVVVAAAADDEEGGGG","--*-------**--*-----------------M--M---------------M------------","Thraustochytrium Mitochondrial"],
+                "24":["FFLLSSSSYY**CCWWLLLLPPPPHHQQRRRRIIIMTTTTNNKKSSSKVVVVAAAADDEEGGGG","---M------**-------M---------------M---------------M------------","Pterobranchia Mitochondrial"],
+                "25":["FFLLSSSSYY**CCGWLLLLPPPPHHQQRRRRIIIMTTTTNNKKSSRRVVVVAAAADDEEGGGG","---M------**-----------------------M---------------M------------","Candidate Division SR1 and Gracilibacteria"],
+                "26":["FFLLSSSSYY**CC*WLLLAPPPPHHQQRRRRIIIMTTTTNNKKSSRRVVVVAAAADDEEGGGG","----------**--*----M---------------M----------------------------","Pachysolen tannophilus Nuclear"],
+                "27":["FFLLSSSSYYQQCCWWLLLLPPPPHHQQRRRRIIIMTTTTNNKKSSRRVVVVAAAADDEEGGGG","--------------*--------------------M----------------------------","Karyorelict Nuclear"],
+                "28":["FFLLSSSSYYQQCCWWLLLLPPPPHHQQRRRRIIIMTTTTNNKKSSRRVVVVAAAADDEEGGGG","----------**--*--------------------M----------------------------","Condylostoma Nuclear"],
+                "29":["FFLLSSSSYYYYCC*WLLLLPPPPHHQQRRRRIIIMTTTTNNKKSSRRVVVVAAAADDEEGGGG","--------------*--------------------M----------------------------","Mesodinium Nuclear"],
+                "30":["FFLLSSSSYYEECC*WLLLLPPPPHHQQRRRRIIIMTTTTNNKKSSRRVVVVAAAADDEEGGGG","--------------*--------------------M----------------------------","Peritrich Nuclear"],
+                "31":["FFLLSSSSYYEECCWWLLLLPPPPHHQQRRRRIIIMTTTTNNKKSSRRVVVVAAAADDEEGGGG","----------**-----------------------M----------------------------","Blastocrithidia Nuclear"]
+            };
+        // Ecoli is numbered 11
+        
+        var base1 = 'TTTTTTTTTTTTTTTTCCCCCCCCCCCCCCCCAAAAAAAAAAAAAAAAGGGGGGGGGGGGGGGG';
+        var base2 = 'TTTTCCCCAAAAGGGGTTTTCCCCAAAAGGGGTTTTCCCCAAAAGGGGTTTTCCCCAAAAGGGG';
+        var base3 = 'TCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAG';
+        var ref_aminos = codon_tables['11'][0]; //work with E coli. first
+        var ref_codons = 'TTT TTC TTA TTG CTT CTC CTA CTG ATT ATC ATA ATG GTT GTC GTA GTG TAT TAC TAA TAG CAT CAC CAA CAG AAT AAC AAA AAG GAT GAC GAA GAG TCT TCC TCA TCG CCT CCC CCA CCG ACT ACC ACA ACG GCT GCC GCA GCG TGT TGC TGA TGG CGT CGC CGA CGG AGT AGC AGA AGG GGT GGC GGA GGG';
+        ref_codons = ref_codons.split(' ');
+        
+        function test(){
+            var sequence = document.getElementById("sequence_input").value.replace(/\s+/g, '');
+            
+            
+            var [ref_index, codons, prot_seq] = translate(sequence);
+            var ref_index = ref_index.map(x => Number(x));
+            
+            //var prot_seq = prot_seq.map(function(e,i){ if(e == '*'){return prot_seq[i]='\\*'}})
+            var ref_codon_nums = parse2num(table);
+            var ttl_codons = ref_codon_nums.reduce((a, b) => a + b, 0); //sum in js
+            var codon_freq1000 = ref_codon_nums;
+            codon_freq1000.forEach((e,i)=>codon_freq1000[i] = 1000*e/ttl_codons); // use `map` to keep original
+            
+            
+            var act_freqs = ref_index.map(x => codon_freq1000[x])
+            
+            var max_freqs = cal_max_freqs(prot_seq, codon_freq1000); //SRJ: I think you could just precompute all the aa => max, aa => min, aa=> avg tables, so you don't have to repeat the same math over and over, for example every time you see a K amino acid, it does the exact same math, so if there are 20 Ks in a sequence, it would do 20 times as much math as it needs to. Not that performance is really an issue for this code, it seems to run fast enough
+            var min_freqs = cal_min_freqs(prot_seq, codon_freq1000);
+            var avg_freqs = cal_avg_freqs(prot_seq, codon_freq1000);
+            var MaxMin = cal_MaxMin(act_freqs,max_freqs,min_freqs,avg_freqs, range = 10);
+            return MaxMin;
+        };
+        function sub_test(){
+            
+            document.write(mul_match('TAA','TAGTAATCG'));
+        };
+        function parse2num(seq){
+            //Return array of numbers of excell strings
+            //var texts = seq.split(' ');
+            var texts = seq.match(/\S+/g); // remove all space between
+            var nums = texts.map(x => Number(x));
+            return nums;
+            
+        };
+        function mul_match(key, str){
+            // Return all indexes of the keyword found on the reference text
+            var key = new RegExp(key,'g'); //global search
+            var arrNxt;
+            var index = new Array();
+            while ((arrNxt = key.exec(str)) !== null){ //update the index of matches on ref.
+                index.push(key.lastIndex-1);
+            };
+            return index;
+        };
+        
+        function array_div(arr1,arr2){
+            var newarr = arr1;
+            newarr.forEach((item, index) => newarr[index] = item/arr2[index]);
+            return newarr;
+            
+        };
+        function avg_array(arr, range){
+            
+            var ttl_divisions = Math.floor(arr.length/range);
+            var newarr = new Array();
+            for (i=0; i<ttl_divisions; i++){
+                var counter = [...Array(range).keys()].map(e => e+range*i);
+                var group = arr.filter((e,i) => counter.includes(i));
+                var avg_group = group.reduce((a, b) => a + b, 0)/group.length;
+                newarr.push(avg_group);
+            };
+            return newarr;
+        };
+        //arr.forEach(arr => document.write(arr));
+        function replicate(arr, time){
+            // Repeat n times of original array
+            newarr = arr;
+            for (i=1; i<time; i++){
+                newarr = newarr.concat(arr);
+            };
+            return newarr;
+        };
+        
+        function translate(seq){
+            
+            //Translate codon sequence into amino acids (protein translation)
+            var codons = seq.match(/.{1,3}/g);
+            if (codons.slice(-1)[0].length<3){
+                codons.splice(codons.length-1, 1)  //remove items
+            };
+            var prot_seq = new Array();
+            var ref_index = new Array();
+            
+            for (i = 0; i<codons.length; i++){ //SRJ: fixed intending.
+                
+                b2_match = mul_match(codons[i][1],base2);
+                b3_match = mul_match(codons[i][2],base3);
+                b_match = b1_match.filter(k => b2_match.includes(k)); //filter: 'true' to keep in array
+                b_match = b_match.filter(k=>b3_match.includes(k));
+                ref_index.push(b_match);
+                if (ref_aminos[b_match] == '*'){
+                    prot_seq.push('\\*');
+                } else{
+                    prot_seq.push(ref_aminos[b_match]);
+                }
+                //document.write(ref_aminos[b_match]);
+                
+            };
+            
+            return [ref_index, codons, prot_seq];
+            
+        };
+        
+        function codon_search(amino){
+            //Find possible codons for the same amino acid
+            var index = mul_match(amino,ref_aminos);
+            var codon_options = new Array();
+            for (i=0; i<index.length; i++){
+                codon_options.push(base1[i]+base2[i]+base3[i]);
+                
+            };
+            return codon_options;
+        };
+        function cal_max_freqs(aminos, ttl_codon_freqs){
+            //return the MAX frequencies
+            var max_amino_freqs = new Array();
+            for (i=0; i < aminos.length; i++){
+                var indexes = mul_match(aminos[i],ref_aminos); // all possible codons per amino
+                var all_amino_freqs = ttl_codon_freqs.filter((e,i) => indexes.includes(i));
+                max_amino_freqs.push(Math.max(...all_amino_freqs));
+            }
+            return max_amino_freqs;
+        };
+        function cal_min_freqs(aminos, ttl_codon_freqs){
+            //return the MIN frequencies
+            var min_amino_freqs = new Array();
+            for (i=0; i < aminos.length; i++){
+                var indexes = mul_match(aminos[i],ref_aminos); // all possible codons per amino
+                var all_amino_freqs = ttl_codon_freqs.filter((e,i) => indexes.includes(i));
+                min_amino_freqs.push(Math.min(...all_amino_freqs));
+            }
+            return min_amino_freqs;
+        };
+        function cal_avg_freqs(aminos, ttl_codon_freqs){
+            //return the AVG frequencies
+            var avg_amino_freqs = new Array();
+            for (i=0; i < aminos.length; i++){
+                var indexes = mul_match(aminos[i],ref_aminos); // all possible codons per amino
+                var all_amino_freqs = ttl_codon_freqs.filter((e,i) => indexes.includes(i));
+                avg_amino_freqs.push(all_amino_freqs.reduce((a, b) => a + b, 0)/all_amino_freqs.length);
+            }
+            return avg_amino_freqs;
+        };
+        
+        function cal_MaxMin(act_freqs, max_freqs, min_freqs, avg_freqs, range){
+            //return %MaxMin of each codon
+            //grouping into n numbers of codon intervals
+            act_freqs = avg_array(act_freqs,range);
+            max_freqs = avg_array(max_freqs,range);
+            min_freqs = avg_array(min_freqs,range);
+            avg_freqs = avg_array(avg_freqs,range);
+            Max = array_div(act_freqs.map((item, index) => 100*(item - avg_freqs[index])),
+                            max_freqs.map((item, index) => item - avg_freqs[index]));
+                            Min = array_div(avg_freqs.map((item, index) => 100*(item - act_freqs[index])),
+                                            avg_freqs.map((item, index) => item - min_freqs[index]));
+                                            var MaxMin = new Array();
+                                            for (i=0; i<act_freqs.length; i++){
+                                                if (Max[i]>0){
+                                                    MaxMin.push(Max[i]);
+                                                } else {//if(Min[0]>0){
+                                                    MaxMin.push(-Min[i]);
+                                                    //} else{
+                                                    //  MaxMin.push(0)
+                                                }
+                                            };
+                                            return MaxMin;
+        };
+        
+        //data = [3,5,2,2,-51,6,7,-41,2,7,8,4,0,2,02,71,93,02,03,04,26,23,17,13,46,25,8,243,15,13,63,3,
+        //    3,6,1,8,3,84,4,7,3,2,7,3,6,1,2,5,3,8,2,41,2,4,73,43,73,4,6]; //random data
+        
+        function generateGraphs() { // Declare a function
+            
+            
+            ctx = document.getElementById('graph').getContext('2d');
+            data = test();
+            
+            var barColor = new Array();
+            for (i = 0; i < data.length; i++){
+                if (data[i]>0){
+                    barColor.push('rgba(0, 0, 255, 0.2)');
+                } else {
+                    barColor.push('rgba(255, 0, 0 , 0.2)');
+                }
+            };
+            
+            var myChart = new Chart(ctx, {
+                                    type: 'bar',
+                                    data: {
+                                    labels: data,
+                                    datasets: [{
+                                               label: 'length of strings',
+                                               data: data,
+                                               backgroundColor: barColor
+                                               
+                                               //'rgba(255, 99, 132, 0.2)',
+                                               //'rgba(54, 162, 235, 0.2)',
+                                               //'rgba(54, 162, 235, 0.2)',
+                                               ,
+                                               borderColor: [
+                                                             //'rgba(255, 99, 132, 1)',
+                                                             //'rgba(54, 162, 235, 1)',
+                                                             ],
+                                               borderWidth: 1
+                                               }]
+                                    },
+                                    options: {
+                                    scales: {
+                                    xAxes: [{
+                                            gridLines: {
+                                            display:false
+                                            }
+                                            }],
+                                    yAxes: [{
+                                            
+                                            ticks: {
+                                            beginAtZero: true
+                                            }
+                                            }]
+                                    }
+                                    }
+                                    });
+                                    
+                                    
+                                    
+                                    //document.write(0.3-0.3);
+                                    
+                                    
+        }
+        
+        
+            </script>
+        <br/>
+        <span>Sequences</span>
+        <br/>
+        <textarea id="sequence_input" rows="10" cols="50">
+        </textarea>
+        <br/>
+        <span>Codon Table</span>
+        <br/>
+        <input id="codon_table" type="text">
+            <button onclick='test()'>Submit</button>
+            <button onclick='sub_test()'>subtest</button>
+            <br/>
+            
+            
+            <button onclick="generateGraphs()">Generate Graphs</button>
+            <br/>
+            <br/>
+            <span>Output</span>
+            <br/>
+            
+            
+            <br/>
+            <!--<button onclick="console.log(0.3-0.2)"> Console wrITE</button> -->
+            <canvas id="graph" width="3" height="1"></canvas>
+            
+    </body>
+</html>
+
